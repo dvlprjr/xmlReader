@@ -2,126 +2,127 @@ import requests
 import xmltodict
 import pandas as pd
 from datetime import datetime
+import os
 
 def fetch_sanctions_list():
-    # Mensaje de inicio
     print(" Comenzando ejecución...")
 
-    # URL de la lista de sanciones de la OFAC
     url = "https://sanctionslistservice.ofac.treas.gov/entities?list=SDN LIST"
     print(f"Solicitando datos de: {url}")
 
-    # Realizar la solicitud HTTP GET
-    response = requests.get(url)
-
-    # Verificar si la solicitud fue exitosa
-    if response.status_code != 200:
-        print("❌ Error al obtener los datos. Status code:", response.status_code)
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Error al obtener los datos: {e}")
         return
 
     print("✅ Datos recibidos, procesando XML...")
 
-    # Procesar el XML recibido
     try:
         data = xmltodict.parse(response.text)
     except Exception as e:
         print(f"❌ Error al procesar el XML: {e}")
         return
 
-    # Navegar por la estructura del diccionario XML
     sanctions_data = data.get("sanctionsData", {})
     entities_data = sanctions_data.get("entities", {})
 
-    # Verificar si se encontraron datos de entidades
     if not entities_data:
         print("⚠ No se encontraron datos en 'entities'.")
         return
 
-    # Obtener la lista de entidades
     entity_list = entities_data.get("entity", [])
 
-    # Verificar si se encontraron entidades
     if not entity_list:
         print("⚠ No se encontraron entidades en 'entities'.")
         return
 
-    # Asegurar que entity_list sea una lista
     if isinstance(entity_list, dict):
         entity_list = [entity_list]
 
-    # Lista para almacenar los datos de cada entidad
     rows = []
     print(f" Se encontraron {len(entity_list)} entidades. Procesando...")
 
-    # Iterar sobre cada entidad
     for i, entity in enumerate(entity_list, start=1):
-        # Obtener el ID de la entidad
         entity_id = entity.get("@id", "N/A")
-        # Valor predeterminado para el nombre
-        name_str = "N/A"
+        first_name = "N/A"
+        last_name = "N/A"
+        full_name = "N/A"
+        title = "N/A"
+        citizenship = "N/A"
+        birthdate = "N/A"
+        sanctions_program = "N/A"
 
-        # Obtener los datos de los nombres
         names_data = entity.get("names", {}).get("name", [])
-
-        # Manejar el caso donde names_data es una lista
         if isinstance(names_data, list):
-            # Iterar sobre cada nombre en la lista
             for name_item in names_data:
-                # Verificar si el nombre es primario
                 if isinstance(name_item, dict) and name_item.get("isPrimary") == "true":
-                    # Obtener las traducciones del nombre
                     translations = name_item.get("translations", {}).get("translation", [])
-                    # Manejar el caso donde translations es una lista
                     if isinstance(translations, list):
-                        # Iterar sobre cada traducción
                         for translation in translations:
-                            # Verificar si la traducción es primaria
                             if isinstance(translation, dict) and translation.get("isPrimary") == "true":
-                                # Obtener el nombre completo formateado
-                                name_str = translation.get("formattedFullName", "N/A")
-                                # Salir del bucle interno
+                                full_name = f"{translation.get('formattedFirstName', 'N/A')} {translation.get('formattedLastName', 'N/A')}"
+                                first_name = translation.get("formattedFirstName", "N/A")
+                                last_name = translation.get("formattedLastName", "N/A")
                                 break
-                        # Salir del bucle externo si se encontró un nombre
-                        if name_str != "N/A":
+                        if full_name != "N/A":
                             break
-                    # Manejar el caso donde translations es un diccionario
                     elif isinstance(translations, dict) and translations.get("isPrimary") == "true":
-                        name_str = translations.get("formattedFullName", "N/A")
+                        full_name = f"{translations.get('formattedFirstName', 'N/A')} {translations.get('formattedLastName', 'N/A')}"
+                        first_name = translations.get("formattedFirstName", "N/A")
+                        last_name = translations.get("formattedLastName", "N/A")
                         break
-        # Manejar el caso donde names_data es un diccionario
         elif isinstance(names_data, dict) and names_data.get("isPrimary") == "true":
             translations = names_data.get("translations", {}).get("translation", [])
             if isinstance(translations, list):
                 for translation in translations:
                     if isinstance(translation, dict) and translation.get("isPrimary") == "true":
-                        name_str = translation.get("formattedFullName", "N/A")
+                        full_name = f"{translation.get('formattedFirstName', 'N/A')} {translation.get('formattedLastName', 'N/A')}"
+                        first_name = translation.get("formattedFirstName", "N/A")
+                        last_name = translation.get("formattedLastName", "N/A")
                         break
             elif isinstance(translations, dict) and translations.get("isPrimary") == "true":
-                name_str = translations.get("formattedFullName", "N/A")
+                full_name = f"{translations.get('formattedFirstName', 'N/A')} {translations.get('formattedLastName', 'N/A')}"
+                first_name = translations.get("formattedFirstName", "N/A")
+                last_name = translations.get("formattedLastName", "N/A")
 
-        # Agregar los datos de la entidad a la lista rows
-        rows.append([entity_id, name_str])
+        general_info = entity.get("generalInfo", {})
+        title = general_info.get("title", "N/A")
 
-        # Mostrar mensaje de progreso cada 10 entidades
+        features = entity.get("features", {}).get("feature", [])
+        if isinstance(features, list):
+            for feature in features:
+                if isinstance(feature, dict) and feature.get("type", {}).get("#text") == "Birthdate":
+                    birthdate = feature.get("value", "N/A")
+                if isinstance(feature, dict) and feature.get("type", {}).get("#text") == "Citizenship Country":
+                    citizenship = feature.get("value", "N/A")
+
+        sanctions_programs_data = entity.get("sanctionsProgram", [])
+        if isinstance(sanctions_programs_data, list):
+            sanctions_program = ", ".join([program.get("#text", "N/A") for program in sanctions_programs_data])
+        elif isinstance(sanctions_programs_data, dict) and sanctions_programs_data.get("#text"):
+            sanctions_program = sanctions_programs_data.get("#text", "N/A")
+
+        rows.append([entity_id, first_name, last_name, full_name, title, citizenship, birthdate, sanctions_program])
+
         if i % 10 == 0:
             print(f"✅ Procesadas {i} de {len(entity_list)} entidades...")
 
-    # Crear el DataFrame con los datos extraídos
-    df = pd.DataFrame(rows, columns=["ID", "Nombres"])
+    df = pd.DataFrame(rows, columns=["ID", "FirstName", "LastName", "FullName", "Title", "Citizenship", "BirthDate", "SanctionsPrograms"])
     print(f"✅ Procesamiento completo. Se han procesado {len(rows)} entidades.")
 
-    # Generar el nombre del archivo con fecha y hora
     now = datetime.now()
     file_name = f"C:\\xmlReader\\Sanctions_list_{now.strftime('%Y%m%d_%H%M%S')}.xlsx"
 
-    # Guardar el DataFrame en un archivo Excel
     try:
         df.to_excel(file_name, index=False)
         print(f"✅ Archivo Excel generado correctamente en: {file_name}")
     except Exception as e:
         print(f"❌ Error al guardar el archivo Excel: {e}")
+        print(f"Directorio actual: {os.getcwd()}")
+        print(f"Ruta del archivo: {file_name}")
 
     print(" Ejecución finalizada.")
 
-# Llamar a la función principal
 fetch_sanctions_list()
