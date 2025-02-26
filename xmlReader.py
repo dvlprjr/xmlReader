@@ -1,6 +1,7 @@
 import requests
 import xmltodict
 import pandas as pd
+from datetime import datetime
 
 def fetch_sanctions_list():
     print(" Comenzando ejecución...")
@@ -46,16 +47,28 @@ def fetch_sanctions_list():
 
         names_data = entity.get("names", {}).get("name", [])
         if isinstance(names_data, list):
-            for name in names_data:
-                if isinstance(name, dict) and name.get("isPrimary") == "true":
-                    translation = name.get("translations", {}).get("translation", {})
-                    if isinstance(translation, dict):
-                        name_str = translation.get("formattedFullName", "N/A")
-                        break  # Tomar el primer nombre primario
+            for name_item in names_data:
+                if isinstance(name_item, dict) and name_item.get("isPrimary") == "true":
+                    translations = name_item.get("translations", {}).get("translation", [])
+                    if isinstance(translations, list):
+                        for translation in translations:
+                            if isinstance(translation, dict) and translation.get("isPrimary") == "true":
+                                name_str = translation.get("formattedFullName", "N/A")
+                                break  # Tomar el primer nombre primario encontrado
+                        if name_str != "N/A":  # Si se encontró un nombre primario, salir del bucle exterior
+                            break
+                    elif isinstance(translations, dict) and translations.get("isPrimary") == "true":
+                        name_str = translations.get("formattedFullName", "N/A")
+                        break
         elif isinstance(names_data, dict) and names_data.get("isPrimary") == "true":
-            translation = names_data.get("translations", {}).get("translation", {})
-            if isinstance(translation, dict):
-                name_str = translation.get("formattedFullName", "N/A")
+            translations = names_data.get("translations", {}).get("translation", [])
+            if isinstance(translations, list):
+                for translation in translations:
+                    if isinstance(translation, dict) and translation.get("isPrimary") == "true":
+                        name_str = translation.get("formattedFullName", "N/A")
+                        break
+            elif isinstance(translations, dict) and translations.get("isPrimary") == "true":
+                name_str = translations.get("formattedFullName", "N/A")
 
         rows.append([entity_id, name_str])
 
@@ -65,7 +78,9 @@ def fetch_sanctions_list():
     df = pd.DataFrame(rows, columns=["ID", "Nombres"])
     print(f"✅ Procesamiento completo. Se han procesado {len(rows)} entidades.")
 
-    file_name = r"C:\xmlReader\sanctions_list.xlsx"
+    now = datetime.now()
+    file_name = f"C:\\xmlReader\\Sanctions_list_{now.strftime('%Y%m%d_%H%M%S')}.xlsx"
+
     try:
         df.to_excel(file_name, index=False)
         print(f"✅ Archivo Excel generado correctamente en: {file_name}")
