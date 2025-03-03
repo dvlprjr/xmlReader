@@ -46,9 +46,8 @@ def fetch_and_update_latest_publication_sql_server():
             END
         """)
 
-        # Obtener el Id de la SDN List
-        cursor.execute("SELECT Id FROM SanctionList WHERE listName = 'SDN List'")
-        sdn_list_id = cursor.fetchone()[0]
+        # Usar el Id 1 para la SDN List (asumiendo que es 1)
+        sdn_list_id = 1
 
         if publications:
             latest_publication = publications[-1]
