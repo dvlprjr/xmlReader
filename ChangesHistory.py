@@ -3,40 +3,10 @@ import pyodbc
 import os
 from dotenv import load_dotenv
 import datetime
-import xml.etree.ElementTree as ET
-import uuid
-
-def process_entity_update(list_name, sanction_id, cursor):
-    """
-    Procesa el endpoint de entidades y registra la actualización en ChangesHistory.
-    """
-    entity_url = f"https://sanctionslistservice.ofac.treas.gov/entities?list={{{list_name}}}"
-    entity_response = requests.get(entity_url)
-    entity_response.raise_for_status()
-
-    root = ET.fromstring(entity_response.content)
-    data_as_of = root.find(".//{https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports/ENHANCED_XML}dataAsOf").text
-
-    try:
-        publication_id = uuid.uuid4().int & (1<<31)-1
-    except Exception as e:
-        print(f"Error generating publication ID: {e}")
-        return
-
-    cursor.execute("""
-        IF EXISTS (SELECT 1 FROM ChangesHistory WHERE typeList = ? AND datePublished = ?)
-        BEGIN
-            UPDATE ChangesHistory SET publicationID = ?, datePublished = ? WHERE typeList = ?
-        END
-        ELSE
-        BEGIN
-            INSERT INTO ChangesHistory (publicationID, datePublished, typeList) VALUES (?, ?, ?);
-        END
-    """, (sanction_id, data_as_of, publication_id, data_as_of, sanction_id, publication_id, data_as_of, sanction_id))
 
 def fetch_and_update_latest_publication_sql_server():
     """
-    Programa que consume la API de OFAC y guarda la información en la tabla ChangesHistory.
+    Programa que consume la API de OFAC y guarda la información en la tabla ChangesHistory (solo para SDN List).
     """
     current_year = datetime.datetime.now().year
     url = f"https://sanctionslistservice.ofac.treas.gov/changes/history/{current_year}"
@@ -70,38 +40,35 @@ def fetch_and_update_latest_publication_sql_server():
             BEGIN
                 CREATE TABLE ChangesHistory (
                     publicationID INTEGER PRIMARY KEY,
-                    datePublished NVARCHAR(255), -- Cambio a NVARCHAR(255)
+                    datePublished TEXT,
                     typeList INT
                 );
             END
         """)
 
-        if publications:  # Verificar si la lista no está vacía
-            latest_publication = publications[-1]  # Obtener el último elemento de la lista
+        # Obtener el Id de la SDN List
+        cursor.execute("SELECT Id FROM SanctionList WHERE listName = 'SDN List'")
+        sdn_list_id = cursor.fetchone()[0]
 
-            # Obtener el Id y listName de la tabla SanctionList
-            cursor.execute("SELECT Id, listName FROM SanctionList")
-            sanction_lists = cursor.fetchall()
+        if publications:
+            latest_publication = publications[-1]
 
-            for sanction_id, list_type in sanction_lists:
-                cursor.execute("""
-                    IF EXISTS (SELECT 1 FROM ChangesHistory WHERE publicationID = ?)
-                    BEGIN
-                        UPDATE ChangesHistory SET datePublished = ?, typeList = ? WHERE publicationID = ?
-                    END
-                    ELSE
-                    BEGIN
-                        INSERT INTO ChangesHistory (publicationID, datePublished, typeList) VALUES (?, ?, ?);
-                    END
-                """, (latest_publication["publicationID"], latest_publication["datePublished"], sanction_id, latest_publication["publicationID"],
-                      latest_publication["publicationID"], latest_publication["datePublished"], sanction_id))
-
-                # Procesar el endpoint de entidades
-                process_entity_update(list_type, sanction_id, cursor)
+            # Insertar o actualizar el registro para la SDN List
+            cursor.execute("""
+                IF EXISTS (SELECT 1 FROM ChangesHistory WHERE publicationID = ?)
+                BEGIN
+                    UPDATE ChangesHistory SET datePublished = ?, typeList = ? WHERE publicationID = ?
+                END
+                ELSE
+                BEGIN
+                    INSERT INTO ChangesHistory (publicationID, datePublished, typeList) VALUES (?, ?, ?);
+                END
+            """, (latest_publication["publicationID"], latest_publication["datePublished"], sdn_list_id, latest_publication["publicationID"],
+                  latest_publication["publicationID"], latest_publication["datePublished"], sdn_list_id))
 
             conn.commit()
             conn.close()
-            print("Último registro de publicación insertado/actualizado correctamente en SQL Server.")
+            print("Último registro de publicación insertado/actualizado correctamente en SQL Server (SDN List).")
         else:
             print(f"No se encontraron registros de publicación para el año {current_year} en la API.")
 
