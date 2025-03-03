@@ -66,12 +66,12 @@ def fetch_sanctions_list():
                     if isinstance(translations, list):
                         for translation in translations:
                             if isinstance(translation, dict) and translation.get("isPrimary") == "true":
-                                full_name = f"{translation.get('formattedFirstName', '')} {translation.get('formattedLastName', '')}"
+                                full_name = f"{translation.get('formattedFirstName', '').strip()} {translation.get('formattedLastName', '').strip()}".strip()
                                 first_name = translation.get("formattedFirstName", None)
                                 last_name = translation.get("formattedLastName", None)
                                 break
                     elif isinstance(translations, dict) and translations.get("isPrimary") == "true":
-                        full_name = f"{translations.get('formattedFirstName', '')} {translations.get('formattedLastName', '')}"
+                        full_name = f"{translations.get('formattedFirstName', '').strip()} {translations.get('formattedLastName', '').strip()}".strip()
                         first_name = translations.get("formattedFirstName", None)
                         last_name = translations.get("formattedLastName", None)
         elif isinstance(names_data, dict) and names_data.get("isPrimary") == "true":
@@ -79,12 +79,12 @@ def fetch_sanctions_list():
             if isinstance(translations, list):
                 for translation in translations:
                     if isinstance(translation, dict) and translation.get("isPrimary") == "true":
-                        full_name = f"{translation.get('formattedFirstName', '')} {translation.get('formattedLastName', '')}"
+                        full_name = f"{translation.get('formattedFirstName', '').strip()} {translation.get('formattedLastName', '').strip()}".strip()
                         first_name = translation.get("formattedFirstName", None)
                         last_name = translation.get("formattedLastName", None)
                         break
             elif isinstance(translations, dict) and translations.get("isPrimary") == "true":
-                full_name = f"{translations.get('formattedFirstName', '')} {translations.get('formattedLastName', '')}"
+                full_name = f"{translations.get('formattedFirstName', '').strip()} {translations.get('formattedLastName', '').strip()}".strip()
                 first_name = translations.get("formattedFirstName", None)
                 last_name = translations.get("formattedLastName", None)
 
@@ -119,7 +119,11 @@ def fetch_sanctions_list():
         # Imprimir datos extraídos antes de agregarlos a la fila
         print(f"Entidad {i}: ID={entity_id}, FullName={full_name}, Desc={description}, DocNum={id_number}, IdType={id_type}, IdCountry={id_country}")
 
-        rows.append([entity_id, first_name, last_name, full_name, description, birthdate, id_type, id_number, id_country])
+        # Reemplazar None con "-" en todos los campos excepto FullName
+        row = [entity_id, first_name, last_name, full_name, description, birthdate, id_type, id_number, id_country]
+        row_replaced = ["-" if x is None else x for x in row]
+        row_replaced[3] = row[3]  # Conservar el valor original de FullName
+        rows.append(row_replaced)
 
         if i % 10 == 0:
             print(f"Procesadas {i} de {len(entity_list)} entidades...")
@@ -177,7 +181,7 @@ def fetch_sanctions_list():
                 cursor.execute("""
                     INSERT INTO SDN_LIST (Id, FirstName, LastName, FullName, Description, Birthdate, IdType, IdNumber, IdCountry)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, row)
+                """, row_replaced)
         except pyodbc.Error as e:
             print(f"Error inserting/updating data: {e}")
 
