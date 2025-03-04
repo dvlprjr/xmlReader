@@ -3,7 +3,7 @@
 import requests
 import pyodbc
 import os
-from dotenv import load_dotenv
+#from dotenv import load_dotenv
 
 def fetch_and_store_sanctions_lists():
     url = "https://sanctionslistservice.ofac.treas.gov/sanctions-lists"
@@ -13,12 +13,13 @@ def fetch_and_store_sanctions_lists():
         response.raise_for_status()
         sanctions_lists = response.json()
 
-        load_dotenv()
+#      load_dotenv()
 
-        server = os.getenv("SQL_SERVER")
-        database = os.getenv("SQL_DATABASE")
-        username = os.getenv("SQL_USERNAME")
-        password = os.getenv("SQL_PASSWORD")
+        # Conexión a la base de datos
+        server = os.getenv("SQL_SERVER_OFACPY")
+        database = os.getenv("SQL_DATABASE_OFACPY")
+        username = os.getenv("SQL_USERNAME_OFACPY")
+        password = os.getenv("SQL_PASSWORD_OFACPY")
 
         conn_str = (
             f'DRIVER={{ODBC Driver 17 for SQL Server}};'

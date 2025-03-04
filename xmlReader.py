@@ -2,7 +2,6 @@ import requests
 import xmltodict
 import pyodbc
 import os
-from dotenv import load_dotenv
 
 def fetch_sanctions_list():
     """
@@ -129,11 +128,10 @@ def fetch_sanctions_list():
             print(f"Procesadas {i} de {len(entity_list)} entidades...")
 
     # Conexión a la base de datos
-    load_dotenv()
-    server = os.getenv("SQL_SERVER")
-    database = os.getenv("SQL_DATABASE")
-    username = os.getenv("SQL_USERNAME")
-    password = os.getenv("SQL_PASSWORD")
+    server = os.getenv("SQL_SERVER_OFACPY")
+    database = os.getenv("SQL_DATABASE_OFACPY")
+    username = os.getenv("SQL_USERNAME_OFACPY")
+    password = os.getenv("SQL_PASSWORD_OFACPY")
 
     conn_str = (
         f'DRIVER={{ODBC Driver 17 for SQL Server}};'
@@ -174,7 +172,7 @@ def fetch_sanctions_list():
                 cursor.execute("""
                     UPDATE SDN_LIST
                     SET FirstName = ?, LastName = ?, FullName = ?, Description = ?, Birthdate = ?, IdType = ?, IdNumber = ?, IdCountry = ?
-                    WHERE Id = ?
+                    WHERE Id =?
                 """, (row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[0]))
             else:
                 # Insertar un nuevo registro
